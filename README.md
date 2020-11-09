@@ -13,11 +13,11 @@ This repository provides all the codes for the implementation of the method of d
   * df_te.csv - Dataset with entropies already computed for the study case
   * df_lag.csv - Dataset with the lags computed in the transfer entropy - corresponds to the 'h' parameter that produced the high amount of entropy
   
-*K2_utils.py - Python script with K2-algorithm basic functions implemented
-*TransferEntropy_utils.py Python script with Transfer Entropy basic functions implemented
-*Utils.py - Python script with basic functions used in the proposed method
-*Methodology.py - Python script containing the implementation of all the algorithms needed to use the proposed method, along with the function "apply_methodology" which does reproduce all the stages of the method and reproduces the result presented on the paper.
-*Methodology.ipynb - Jupyter notebook of the Methodology script, it can be used for study purposes. 
+* K2_utils.py - Python script with K2-algorithm basic functions implemented
+* TransferEntropy_utils.py Python script with Transfer Entropy basic functions implemented
+* Utils.py - Python script with basic functions used in the proposed method
+* Methodology.py - Python script containing the implementation of all the algorithms needed to use the proposed method, along with the function "apply_methodology" which does reproduce all the stages of the method and reproduces the result presented on the paper.
+* Methodology.ipynb - Jupyter notebook of the Methodology script, it can be used for study purposes. 
 
 
 ## Final Graph of causal relationships produced by the application of the method
