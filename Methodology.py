@@ -4,6 +4,13 @@
 # In[1]:
 
 
+# https://pypi.python.org/pypi/pydot
+# !pip install graphviz
+
+
+# In[2]:
+
+
 import copy
 import pandas as pd
 import numpy as np
@@ -32,15 +39,9 @@ from scipy.ndimage import shift
 from getpass import getpass
 import os
 
-import TransferEntropy as te
+import TransferEntropy_utils as te_utils
 import K2_utils as K2_utils
-
-
-# In[2]:
-
-
-# https://pypi.python.org/pypi/pydot
-get_ipython().system('pip install graphviz')
+import Utils as utils
 
 
 # In[3]:
@@ -83,6 +84,37 @@ def get_significante_TEs(df, thresh):
 # In[5]:
 
 
+def compute_te_by_h(k,l,h_window, a,b):
+    '''
+        transentropy a->b
+        te(k,l,h,a,b)
+        k - dimension of b
+        l - dimension of a
+        h -> time window in the future of a [0..h]
+    '''
+    #joint_p_ih_ik_jl = joint_probability_new(k,l,h,a,b, lbl_a, lbl_b)
+    
+    te_by_h = []
+    for h in np.arange(1,h_window):
+        joint_p_ih_ik_jl = te_utils.joint_probability(k,l,h,a,b)
+
+        joint_p_ih_ik = te_utils.joint_prob_ih_ik(k,l, joint_p_ih_ik_jl)
+        conditional_num = te_utils.conditional_prob(k,l,joint_p_ih_ik_jl)
+        conditional_den = te_utils.conditional_prob(k,0, joint_p_ih_ik)    
+        div = te_utils.conditional_div(k,l,conditional_num, conditional_den)
+
+        #log2 from the division of the conditionals -> #p(i_sub_t+h|i_sub_t**k, j_sub_t**l) /p(i_sub_t+h|i_t**k)
+        log2_div_cond = np.log2(div[div!=0])
+        te = np.sum(joint_p_ih_ik_jl[div!=0]*log2_div_cond)
+
+        te_by_h.append(te)
+        lag = np.argmax(te_by_h) + 1
+    return [max(te_by_h),lag]
+
+
+# In[6]:
+
+
 def compute_TE_and_lags_for_DataFrame(dist_df, h, k, l):
     '''
         Algorithm 1 - Generate graph of transferred entropies and relationship information delays
@@ -101,9 +133,9 @@ def compute_TE_and_lags_for_DataFrame(dist_df, h, k, l):
     sigValues =  np.zeros([dist_df.columns.size,dist_df.columns.size])
     for i in np.arange(0, dist_df.columns.size):
         for j in np.arange(0, dist_df.columns.size):
-            print('trans ', dist_df.columns[i], dist_df.columns[j])
+            print('transfer entropy from ', dist_df.columns[i], ' to ', dist_df.columns[j])
             if(j != i + dist_df.columns.size/2 and j!=i and j != i - dist_df.columns.size/2):
-                te_result = te.te(k,l,h, dist_df[dist_df.columns[i]], dist_df[dist_df.columns[j]])
+                te_result = compute_te_by_h(k,l,h, dist_df[dist_df.columns[i]], dist_df[dist_df.columns[j]])
                 transEntropy[i][j] = te_result[0]
                 lagEntropy[i][j] = te_result[1]
                 
@@ -111,10 +143,13 @@ def compute_TE_and_lags_for_DataFrame(dist_df, h, k, l):
     end = time.process_time()   
     
     print('Time for the complete computation: ', end - start, ' seconds.')
-    return [transEntropy, lagEntropy]  
+    transEntropy_df = pd.DataFrame(transEntropy, columns = dist_df.columns, index = dist_df.columns)
+    lagEntropy_df = pd.DataFrame(lagEntropy, columns = dist_df.columns, index = dist_df.columns)
+    
+    return [transEntropy_df, lagEntropy_df]  
 
 
-# In[6]:
+# In[7]:
 
 
 def remove_cycles(graph):
@@ -154,7 +189,7 @@ def remove_cycles(graph):
     return grafo_ac
 
 
-# In[7]:
+# In[8]:
 
 
 def get_node_genealogy(genealogy, node, new_list):
@@ -194,7 +229,7 @@ def get_node_genealogy(genealogy, node, new_list):
             return get_node_genealogy(genealogy, node, new_list)
 
 
-# In[8]:
+# In[9]:
 
 
 def gen_common_and_virtual_parents(df,idx, summation, dict_lags, lista, dict_ways):
@@ -233,7 +268,7 @@ def gen_common_and_virtual_parents(df,idx, summation, dict_lags, lista, dict_way
     return [dict_lags, dict_ways] 
 
 
-# In[9]:
+# In[10]:
 
 
 def ensemble_nodes_parents(nodes, df):
@@ -259,7 +294,7 @@ def ensemble_nodes_parents(nodes, df):
     return dic
 
 
-# In[10]:
+# In[11]:
 
 
 def gen_k2_tree_from_lags(dici):
@@ -286,7 +321,7 @@ def gen_k2_tree_from_lags(dici):
         
 
 
-# In[11]:
+# In[12]:
 
 
 def generate_dataset_of_K2_iteration(df, node, dict_lag):
@@ -310,54 +345,14 @@ def generate_dataset_of_K2_iteration(df, node, dict_lag):
     return df_gen
 
 
-# In[12]:
-
-
-def reconstruction_of_the_graph(df_lags, k2_return):
-    '''
-        Algorithm 8 - Reconstruction of the graph
-        params:
-            df_lags - DataFrame with lags of the relationships
-                (Corresponds to the lags of graph with the most significant entropies and no cycles)
-            k2_return - Resulting tree delivered by K2-Modified (Dictionary)
-    
-    '''
-    df_clean = pd.DataFrame(data=np.zeros([len(df_lags.columns),len(df_lags.columns)], dtype=float), columns= df_lags.columns, index= df_lags.columns) 
-
-    for key, values in k2_return.items():
-        node_son = key
-        lista_son = te. get_lags_ances_df(df_lags, node_son,0, {}, [], {})[1]
-
-        for node in values:
-            split_name = node.split('-')
-            node_ref = split_name[0]
-            lag = split_name[1].split('_')[1]
-            idx_ref = int(split_name[1].split('_')[0])
-
-            count = 0
-            path_list = lista_son[node_ref][idx_ref][::-1]
-
-            if len(lista_son[node_ref][idx_ref][::-1]) == 1:
-                print('here ',node_ref, node_son)
-                df_clean.at[node_ref,node_son] = 1
-            while count < len(path_list) -1:
-                print('here ',node_ref, node_son)
-                df_clean.at[path_list[count], path_list[count+1]] = 1
-                count +=1
-            if not len(lista_son[node_ref][idx_ref][::-1]) == 1:
-                df_clean.at[node_ref, path_list[0]] = 1
-                
-            df_clean = te_vld__lags_no_cycle[df_clean>0].fillna(0)
-
-    return df_clean
-
-
 # In[13]:
 
 
 def k2_modified(df_cases, dict_lags,tree_ogn, c=1):
     
-    '''K2_modified algorithm implementation
+    '''
+        Algorithm 7 - K2-Modified
+        K2_modified algorithm implementation
     
         params:
             df_cases: The dataframe of cases of the bayesian network, the columns are all the nodes 
@@ -418,9 +413,50 @@ def k2_modified(df_cases, dict_lags,tree_ogn, c=1):
 # In[14]:
 
 
+def reconstruction_of_the_graph(df_lags, k2_return):
+    '''
+        Algorithm 8 - Reconstruction of the graph
+        params:
+            df_lags - DataFrame with lags of the relationships
+                (Corresponds to the lags of graph with the most significant entropies and no cycles)
+            k2_return - Resulting tree delivered by K2-Modified (Dictionary)
+    
+    '''
+    df_clean = pd.DataFrame(data=np.zeros([len(df_lags.columns),len(df_lags.columns)], dtype=float), columns= df_lags.columns, index= df_lags.columns) 
+
+    for key, values in k2_return.items():
+        node_son = key
+        lista_son = gen_common_and_virtual_parents(df_lags, node_son,0, {}, [], {})[1]
+
+        for node in values:
+            split_name = node.split('-')
+            node_ref = split_name[0]
+            lag = split_name[1].split('_')[1]
+            idx_ref = int(split_name[1].split('_')[0])
+
+            count = 0
+            path_list = lista_son[node_ref][idx_ref][::-1]
+
+            if len(lista_son[node_ref][idx_ref][::-1]) == 1:
+                df_clean.at[node_ref,node_son] = 1
+            while count < len(path_list) -1:
+                df_clean.at[path_list[count], path_list[count+1]] = 1
+                count +=1
+            if not len(lista_son[node_ref][idx_ref][::-1]) == 1:
+                df_clean.at[node_ref, path_list[0]] = 1
+                
+            df_clean = df_lags[df_clean>0].fillna(0)
+
+    return df_clean
+
+
+# In[15]:
+
+
 k2_mod_result = {}
 
-def apply_methodlogy(k,l,h, t, alarms_df):
+
+def apply_methodology(k,l,h, t, alarms_df):
     '''
         Application of all the stages of the proposed Method on the case study
         params: 
@@ -431,11 +467,19 @@ def apply_methodlogy(k,l,h, t, alarms_df):
             alarms_df: DataFrame wih the industrial alarms that occurreddue to the disturbance application
     '''
     global k2_mod_result
-    
-    df_te_and_lags = compute_TE_and_lags_for_DataFrame(alarms_df, h, k , l)
-    
-    df_te = df_te_and_lags[0]
-    df_lags = df_te_and_lags[1]
+
+    try:
+        #"Because it takes a long time to run TE, we provided the datasets with TE and lags 
+        #computed on the 'data', you can"
+        with open("data/df_te.csv") as df_te, open("data/df_lags.csv") as df_lags:
+            df_te = pd.read_csv(df_te, index_col=0)
+            df_lags = pd.read_csv(df_lags, index_col=0)
+    except:
+        print("Files do not exist, computing Transfer Entropy for dataframe")
+        df_te_and_lags = compute_TE_and_lags_for_DataFrame(alarms_df, h, k , l)
+        df_te = df_te_and_lags[0]
+        df_lags = df_te_and_lags[1]
+        
     
     #Threshold proposed by the article -     t = 0.007668474476869511
     
@@ -448,13 +492,13 @@ def apply_methodlogy(k,l,h, t, alarms_df):
                                    columns=te_significants.columns, index=te_significants.columns)
 
     # Utilizing the graph containing the lags of the relationships
-    te_lags_no_cycle = df_lag[te_no_cycle > 0].fillna(0)
+    te_lags_no_cycle = df_lags[te_no_cycle > 0].fillna(0)
 
     #Computing Common and Virtual Parents lags DataFrame
     dict_lags = ensemble_nodes_parents(te_lags_no_cycle.columns, te_lags_no_cycle)
 
     #Generation of K2 pre-order
-    k2_tree = gen_tree_from_lags(dict_parents)
+    k2_tree = gen_k2_tree_from_lags(dict_lags)
 
     #Computation of Modified K2
     k2_mod_result = k2_modified(alarms_df,dict_lags, k2_tree,1)
@@ -464,8 +508,41 @@ def apply_methodlogy(k,l,h, t, alarms_df):
     return final_graph
 
 
-# In[ ]:
+# In[16]:
 
 
 
+#We have pre process this data applying a mooving mean of 5 samples, this is not an obligated stage, but you
+#can do it by using the function apply_mooving_mean(df, mean) from utils.py script:
+
+alarms = pd.read_csv("alarms_m5.csv", index_col=0)
+
+#Parameters used in the case study of the article
+k = 1
+l = 1
+h = 50
+t = 0.007668474476869511
+
+final_graph = apply_methodology(k, l, h, t, alarms)
+
+
+# In[17]:
+
+
+final_graph
+
+
+# In[18]:
+
+
+#Saving the final graph
+final_graph.to_csv('final_graph_latest.csv')
+
+
+# In[19]:
+
+
+#Plot of graph of causal realationships
+print('Final Graph')
+utils.graph_simple(final_graph)
 
