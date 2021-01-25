@@ -1,5 +1,5 @@
 # Detection of Causal Relationships between time series
-Code for paper "A method for detecting causal relationships between discrete time series using Transfer entropy and K2-Algorithm: A case study on the plant-wide simulation Tennessee Eastman Process"
+Code for paper "A method for detecting causal relationships between industrial alarm variables using Transfer Entropy and K2-Algorithm"
 
 
 ## About
