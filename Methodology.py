@@ -39,7 +39,7 @@ from scipy.ndimage import shift
 from getpass import getpass
 import os
 
-import TransferEntropy_utils as te_utils
+import TransferEntropy as te_utils
 import K2_utils as K2_utils
 import Utils as utils
 
