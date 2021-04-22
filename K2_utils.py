@@ -121,11 +121,12 @@ def f_mdl(df,x_i,pi, c):
     if(pi):
         for j in np.arange(0,q_i):
             for i in np.arange(0,r_i):
-                if Nijk[2*j + i] and Nij[j]:
-                      pbs += Nijk[2*j + i]*(math.log(Nijk[2*j + i]) - math.log(Nij[j]))          
-                elif Nij[j]:
-                    pbs += - math.log(Nij[j])
-            pbs += -(c/2)*math.log(N)*q_i*(r_i -1)
+                if (len(Nijk) > (2*j + i) and len(Nij)>j):
+                    if Nijk[2*j + i] and Nij[j]:
+                          pbs += Nijk[2*j + i]*(math.log(Nijk[2*j + i]) - math.log(Nij[j]))          
+                    elif Nij[j]:
+                        pbs += - math.log(Nij[j])
+        pbs += -(c/2)*math.log(N)*q_i*(r_i -1)
     else:
         for i in np.arange(0,r_i):
             pbs += Nijk[i]*(math.log(Nijk[i]) - math.log(Nij))
